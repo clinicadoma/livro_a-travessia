@@ -895,4 +895,19 @@
         </div>
 
     </div>
+</div><div id="modal-senha-vip" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); z-index: 9999999; align-items: center; justify-content: center; padding: 15px; backdrop-filter: blur(10px);">
+    <div style="background: white; width: 100%; max-width: 350px; border-radius: 25px; padding: 30px 20px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.5); position: relative; animation: subirCard 0.4s ease-out;">
+        
+        <button onclick="document.getElementById('modal-senha-vip').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.1); border: none; color: #64748b; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; cursor: pointer;">✕</button>
+        
+        <div style="font-size: 3.5rem; margin-bottom: 10px;">🔐</div>
+        <h3 style="color: #1e1b4b; font-family: 'Quicksand', sans-serif; font-weight: 900; font-size: 1.4rem; margin: 0 0 10px 0;">Acesso Exclusivo</h3>
+        <p style="color: #475569; font-size: 0.95rem; margin-bottom: 20px; font-weight: 600;">Insira a senha fornecida pela equipe após a sua inscrição.</p>
+        
+        <input type="text" id="input-senha-secreta" placeholder="Sua senha..." style="width: 100%; padding: 15px; border: 2px solid #cbd5e1; border-radius: 12px; font-size: 1.1rem; text-align: center; font-weight: bold; color: #1e293b; outline: none; margin-bottom: 20px; text-transform: uppercase; box-sizing: border-box;">
+        
+        <button class="btn-doma pulse-btn" onclick="window.validarSenhaVIP()" style="background: #ea580c; color: white; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: 900; font-size: 1.05rem; cursor: pointer; box-shadow: 0 8px 20px rgba(234, 88, 12, 0.3);">
+            DESTRAVAR MANUAL ➔
+        </button>
+    </div>
 </div>

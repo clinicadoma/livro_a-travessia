@@ -130,86 +130,12 @@
 <!-- ======================================================= -->
 <!-- MODAL DO COFRE (POP-UP DA SENHA) -->
 <!-- ======================================================= -->
-<div id="modal-senha-vip" style="display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.95); z-index: 9999999; align-items: center; justify-content: center; padding: 15px; backdrop-filter: blur(10px);">
-    <div style="background: white; width: 100%; max-width: 350px; border-radius: 25px; padding: 30px 20px; text-align: center; box-shadow: 0 25px 50px rgba(0,0,0,0.5); position: relative; animation: subirCard 0.4s ease-out;">
-        
-        <button onclick="document.getElementById('modal-senha-vip').style.display='none'" style="position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.1); border: none; color: #64748b; width: 30px; height: 30px; border-radius: 50%; font-weight: bold; cursor: pointer;">✕</button>
-        
-        <div style="font-size: 3.5rem; margin-bottom: 10px;">🔐</div>
-        <h3 style="color: #1e1b4b; font-family: 'Quicksand', sans-serif; font-weight: 900; font-size: 1.4rem; margin: 0 0 10px 0;">Acesso Exclusivo</h3>
-        <p style="color: #475569; font-size: 0.95rem; margin-bottom: 20px; font-weight: 600;">Insira a senha fornecida pela equipe após a sua inscrição.</p>
-        
-        <input type="text" id="input-senha-secreta" placeholder="Sua senha..." style="width: 100%; padding: 15px; border: 2px solid #cbd5e1; border-radius: 12px; font-size: 1.1rem; text-align: center; font-weight: bold; color: #1e293b; outline: none; margin-bottom: 20px; text-transform: uppercase; box-sizing: border-box;">
-        
-        <button class="btn-doma pulse-btn" onclick="window.validarSenhaVIP()" style="background: #ea580c; color: white; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: 900; font-size: 1.05rem; cursor: pointer; box-shadow: 0 8px 20px rgba(234, 88, 12, 0.3);">
-            DESTRAVAR MANUAL ➔
-        </button>
-    </div>
-</div>
+
 
 <!-- ======================================================= -->
 <!-- SCRIPT DE VALIDAÇÃO GLOBAL (INFALÍVEL) -->
 <!-- ======================================================= -->
-<script>
-    // 1. Função Global para Abrir a Janela
-    window.abrirModalSenhaVIP = function() {
-        var modal = document.getElementById('modal-senha-vip');
-        if (modal) {
-            // Tira o modal de dentro de qualquer prisão e joga na frente da tela
-            if (modal.parentNode !== document.body) {
-                document.body.appendChild(modal);
-            }
-            modal.style.display = 'flex';
-        } else {
-            console.error("Janela da senha não encontrada!");
-        }
-    };
 
-    // 2. Função Global para Checar a Senha
-    window.validarSenhaVIP = function() {
-        const inputSenha = document.getElementById('input-senha-secreta');
-        if (!inputSenha) return;
-        
-        const senha = inputSenha.value.trim().toUpperCase();
-        
-        // A SENHA DEFINIDA É: DOMADORVIP
-        if(senha === 'DOMADORVIP') {
-            if(typeof tocarSomMagico === 'function') tocarSomMagico();
-            document.getElementById('modal-senha-vip').style.display = 'none';
-            
-            // Salva o acesso no navegador
-            localStorage.setItem('acesso_vip_doma_liberado', 'true');
-
-            if(typeof abrirModalDoma === 'function') {
-                abrirModalDoma('Cofre Aberto! 🎉', 'Bem-vindo(a) à Verdadeira Travessia. O Manual do Domador está liberado para você!', 'sucesso', function() {
-                    window.avancarParaAreaVIP();
-                });
-            } else {
-                window.avancarParaAreaVIP();
-            }
-        } else {
-            if(typeof tocarSomAlerta === 'function') tocarSomAlerta();
-            if(typeof abrirModalDoma === 'function') {
-                abrirModalDoma('Senha Incorreta 🚫', 'A senha informada não é válida. Verifique o código enviado para você e tente novamente.', 'alerta');
-            } else {
-                abrirModalDoma("Senha Incorreta! Tente novamente.");
-            }
-        }
-    };
-
-    // 3. Função Global para Avançar o Slide após senha
-    window.avancarParaAreaVIP = function() {
-        // Abre a fechadura na força bruta para esta sessão
-        isUsuarioPremium = true; 
-        
-        // Empurra a tela para frente com o comando seguro
-        if(typeof mudarPagina === 'function') {
-            mudarPagina(1);
-        } else {
-            try { swiperDoma.slideNext(); } catch(e) {}
-        }
-    };
-</script>
   
   
   

@@ -558,6 +558,69 @@ window.marcarProdutoLido = function(id) {
 /* ===== próximo bloco (core) ===== */
 
 
+    // 1. Função Global para Abrir a Janela
+    window.abrirModalSenhaVIP = function() {
+        var modal = document.getElementById('modal-senha-vip');
+        if (modal) {
+            // Tira o modal de dentro de qualquer prisão e joga na frente da tela
+            if (modal.parentNode !== document.body) {
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'flex';
+        } else {
+            console.error("Janela da senha não encontrada!");
+        }
+    };
+
+    // 2. Função Global para Checar a Senha
+    window.validarSenhaVIP = function() {
+        const inputSenha = document.getElementById('input-senha-secreta');
+        if (!inputSenha) return;
+        
+        const senha = inputSenha.value.trim().toUpperCase();
+        
+        // A SENHA DEFINIDA É: DOMADORVIP
+        if(senha === 'DOMADORVIP') {
+            if(typeof tocarSomMagico === 'function') tocarSomMagico();
+            document.getElementById('modal-senha-vip').style.display = 'none';
+            
+            // Salva o acesso no navegador
+            localStorage.setItem('acesso_vip_doma_liberado', 'true');
+
+            if(typeof abrirModalDoma === 'function') {
+                abrirModalDoma('Cofre Aberto! 🎉', 'Bem-vindo(a) à Verdadeira Travessia. O Manual do Domador está liberado para você!', 'sucesso', function() {
+                    window.avancarParaAreaVIP();
+                });
+            } else {
+                window.avancarParaAreaVIP();
+            }
+        } else {
+            if(typeof tocarSomAlerta === 'function') tocarSomAlerta();
+            if(typeof abrirModalDoma === 'function') {
+                abrirModalDoma('Senha Incorreta 🚫', 'A senha informada não é válida. Verifique o código enviado para você e tente novamente.', 'alerta');
+            } else {
+                abrirModalDoma("Senha Incorreta! Tente novamente.");
+            }
+        }
+    };
+
+    // 3. Função Global para Avançar o Slide após senha
+    window.avancarParaAreaVIP = function() {
+        // Abre a fechadura na força bruta para esta sessão
+        isUsuarioPremium = true; 
+        
+        // Empurra a tela para frente com o comando seguro
+        if(typeof mudarPagina === 'function') {
+            mudarPagina(1);
+        } else {
+            try { swiperDoma.slideNext(); } catch(e) {}
+        }
+    };
+
+
+/* ===== próximo bloco (core) ===== */
+
+
 // Função para garantir que o paciente escreva algo no resgate antes de avançar
 function trb_SelarResgate() {
     let campo = document.getElementById('trb_txt_resgate');
@@ -1678,7 +1741,6 @@ function tocarSireneRoleta() {
         atualizarCarteiraUI();
         verificarLoja();
     });
-
     // ==========================================
     // NAVEGAÇÃO SOB DEMANDA (carrega capítulos aos poucos)
     // ==========================================
@@ -1746,6 +1808,15 @@ function tocarSireneRoleta() {
                 document.dispatchEvent(new CustomEvent('doma:capitulo-carregado', {
                     detail: { chunkIndex: chunkIndex, startId: info.start_id }
                 }));
+
+                // Recalcula a altura na hora, em vez de esperar o próximo tick
+                // do intervalo de 300ms — evita o "salto" perceptível bem na
+                // troca de capítulo. Uma segunda chamada um pouco depois pega
+                // imagens que ainda estavam carregando e mudaram a altura.
+                if (typeof reportarAlturaParaWix === 'function') {
+                    reportarAlturaParaWix();
+                    setTimeout(reportarAlturaParaWix, 250);
+                }
             })
             .catch(function (err) {
                 console.error("Falha ao carregar capítulo " + chunkIndex, err);
@@ -1971,6 +2042,10 @@ function tocarSireneRoleta() {
             }
         }
         atualizarVisualSumario();
+        if (typeof reportarAlturaParaWix === 'function') {
+            reportarAlturaParaWix();
+            setTimeout(reportarAlturaParaWix, 250);
+        }
     }
 
     async function irParaTela(idAlvo) {
@@ -2015,6 +2090,10 @@ function tocarSireneRoleta() {
             }
         }
         atualizarVisualSumario();
+        if (typeof reportarAlturaParaWix === 'function') {
+            reportarAlturaParaWix();
+            setTimeout(reportarAlturaParaWix, 250);
+        }
     }
 
 

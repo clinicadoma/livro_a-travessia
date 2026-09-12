@@ -157,21 +157,58 @@ function main() {
     extrairChamadas(s.textContent).forEach((n) => chamadasPorChunk[ci].add(n));
   });
 
-  // ---- 7) Ponto fixo: promove para core.js os capítulos usados fora deles ----
+  // ---- 7) Ponto fixo ALTERNADO: promove funções ao core.js E popups
+  // flutuantes ao capítulo inicial, repetindo até nenhum dos dois mudar
+  // mais nada. Isso importa porque promover um popup pode revelar uma
+  // NOVA dependência: o popup passa a existir desde o início, mas um
+  // botão dentro dele pode chamar uma função que só é definida lá no
+  // capítulo onde o popup morava originalmente — e essa função também
+  // precisa virar core, senão o clique dá "function is not defined".
+  const wrapperTmp = document.getElementById("doma-app-wrapper");
+  const flutuantes = Array.from(wrapperTmp.children).filter(
+    (el) => el.id && !el.classList.contains("doma-pagina") && !el.querySelector(".doma-pagina")
+  );
+
+  const idsRefPorChunk = Array.from({ length: totalChunks }, () => new Set());
+  document.querySelectorAll("*").forEach((el) => {
+    let attrsTexto = "";
+    for (const attr of el.attributes || []) {
+      if (/^on/i.test(attr.name)) attrsTexto += ` ${attr.name}="${attr.value}"`;
+    }
+    if (attrsTexto) {
+      const ci = chunkDoNo(el);
+      extrairIdsGetElementById(attrsTexto).forEach((id) => idsRefPorChunk[ci].add(id));
+    }
+  });
+  scripts.forEach((s, i) => {
+    extrairIdsGetElementById(s.textContent).forEach((id) => idsRefPorChunk[scriptChunk[i]].add(id));
+  });
+
   const coreIdx = new Set();
   for (let ci = 0; ci < totalChunks; ci++) {
     for (const nome of funcsPorChunk[ci]) {
       if (SEED_GLOBAIS.has(nome)) coreIdx.add(ci);
     }
   }
-  let mudou = true;
+  const promoverAoZero = new Set();
   const motivos = {};
+
+  let mudou = true;
   while (mudou) {
     mudou = false;
+
+    // (a) promove capítulos cujas funções são chamadas de fora, incluindo
+    // as chamadas feitas de DENTRO de popups já promovidos ao capítulo 0
+    // (essas contam como "chamadas do capítulo 0" a partir de agora)
+    const chamadasChunk0Extras = new Set();
+    promoverAoZero.forEach((el) => extrairChamadas(el.outerHTML).forEach((n) => chamadasChunk0Extras.add(n)));
+
     const definidasNoCore = new Set();
     coreIdx.forEach((ci) => funcsPorChunk[ci].forEach((n) => definidasNoCore.add(n)));
+
     for (let ci = 0; ci < totalChunks; ci++) {
-      for (const nome of chamadasPorChunk[ci]) {
+      const chamadas = ci === 0 ? new Set([...chamadasPorChunk[ci], ...chamadasChunk0Extras]) : chamadasPorChunk[ci];
+      for (const nome of chamadas) {
         if (funcsPorChunk[ci].has(nome) || definidasNoCore.has(nome)) continue;
         const alvo = funcToChunk.has(nome) ? funcToChunk.get(nome) : undefined;
         if (alvo !== undefined && !coreIdx.has(alvo)) {
@@ -182,6 +219,27 @@ function main() {
         }
       }
     }
+
+    // (b) com o core.js atualizado, verifica se algum popup flutuante
+    // precisa ser promovido ao capítulo inicial
+    const coreJsAtual = scripts
+      .filter((s, i) => coreIdx.has(scriptChunk[i]))
+      .map((s) => s.textContent)
+      .join("\n");
+    const idsRefNoCore = extrairIdsGetElementById(coreJsAtual);
+
+    flutuantes.forEach((el) => {
+      if (promoverAoZero.has(el)) return;
+      const chunkNatural = chunkDoNo(el);
+      if (chunkNatural === 0) return;
+      const referenciadoFora = idsRefPorChunk.some((s, ci) => ci !== chunkNatural && s.has(el.id));
+      const referenciadoNoCore = idsRefNoCore.has(el.id);
+      if (referenciadoFora || referenciadoNoCore) {
+        promoverAoZero.add(el);
+        console.log(`  - popup '#${el.id}' morava no capítulo ${chunkNatural}, mas é chamado de fora -> promovido ao capítulo inicial`);
+        mudou = true;
+      }
+    });
   }
 
   console.log(`capítulos promovidos a core.js: ${[...coreIdx].sort((a, b) => a - b).join(", ")}`);
@@ -204,41 +262,6 @@ function main() {
     }
   });
   const coreJs = coreJsPartes.join("\n\n/* ===== próximo bloco (core) ===== */\n\n");
-
-  // ---- 8.5) Detecta popups/modais "flutuantes" (fora do fluxo de páginas)
-  // que moram num capítulo mas são chamados de outro (ou do próprio core.js),
-  // e promove-os para o capítulo inicial (sempre carregado).
-  const wrapperTmp = document.getElementById("doma-app-wrapper");
-  const flutuantes = Array.from(wrapperTmp.children).filter(
-    (el) => el.id && !el.classList.contains("doma-pagina") && !el.querySelector(".doma-pagina")
-  );
-
-  const idsRefPorChunk = Array.from({ length: totalChunks }, () => new Set());
-  document.querySelectorAll("*").forEach((el) => {
-    let attrsTexto = "";
-    for (const attr of el.attributes || []) {
-      if (/^on/i.test(attr.name)) attrsTexto += ` ${attr.name}="${attr.value}"`;
-    }
-    if (attrsTexto) {
-      const ci = chunkDoNo(el);
-      extrairIdsGetElementById(attrsTexto).forEach((id) => idsRefPorChunk[ci].add(id));
-    }
-  });
-  scripts.forEach((s, i) => {
-    extrairIdsGetElementById(s.textContent).forEach((id) => idsRefPorChunk[scriptChunk[i]].add(id));
-  });
-  const idsRefNoCore = extrairIdsGetElementById(coreJs);
-
-  const promoverAoZero = new Set();
-  flutuantes.forEach((el) => {
-    const chunkNatural = chunkDoNo(el);
-    const referenciadoFora = idsRefPorChunk.some((s, ci) => ci !== chunkNatural && s.has(el.id));
-    const referenciadoNoCore = idsRefNoCore.has(el.id);
-    if ((referenciadoFora || referenciadoNoCore) && chunkNatural !== 0) {
-      promoverAoZero.add(el);
-      console.log(`  - popup '#${el.id}' morava no capítulo ${chunkNatural}, mas é chamado de fora -> promovido ao capítulo inicial`);
-    }
-  });
 
   // ---- 9) Serializa cada capítulo a partir dos filhos diretos de #doma-app-wrapper ----
   const wrapper = document.getElementById("doma-app-wrapper");
