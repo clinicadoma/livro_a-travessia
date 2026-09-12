@@ -9,9 +9,8 @@
  *
  * Por que não regex? O arquivo original tem comentários HTML malformados
  * (ex: "<!-- ... -- >" sem fechar corretamente) que escondem páginas
- * inteiras (o navegador as trata como comentário, então elas nunca
- * aparecem de verdade), e ao menos uma página usa <section> em vez de
- * <div>. Regex não entende essas nuances; um parser de verdade sim.
+ * inteiras, e ao menos uma página usa <section> em vez de <div>. Regex não
+ * entende essas nuances; um parser de verdade sim.
  *
  * Uso:
  *   node build_chunks.js original.html pasta_saida/
@@ -55,6 +54,12 @@ function extrairChamadas(texto) {
   return chamadas;
 }
 
+function extrairIdsGetElementById(texto) {
+  const ids = new Set();
+  for (const m of texto.matchAll(/getElementById\(\s*["']([\w\-]+)["']\s*\)/g)) ids.add(m[1]);
+  return ids;
+}
+
 function serializarNo(node, dom) {
   if (node.nodeType === dom.window.Node.ELEMENT_NODE) return node.outerHTML;
   if (node.nodeType === dom.window.Node.TEXT_NODE) return node.textContent;
@@ -71,9 +76,6 @@ function main() {
 
   const textoOriginal = fs.readFileSync(origem, "utf-8");
 
-  // ids referenciados como destino de navegação em QUALQUER lugar do texto bruto
-  // (inofensivo mesmo se algum estiver em código morto/comentado: só é usado se
-  // corresponder a um elemento realmente existente no DOM resolvido abaixo)
   const waypointIds = new Set();
   for (const m of textoOriginal.matchAll(/irParaTela\(\s*['"]([\w\-]+)['"]\s*\)/g)) waypointIds.add(m[1]);
   for (const m of textoOriginal.matchAll(/data-alvo=["']([\w\-]+)["']/g)) waypointIds.add(m[1]);
@@ -88,8 +90,8 @@ function main() {
   console.log(`total de .doma-pagina encontradas pelo parser real: ${paginas.length}`);
 
   // ---- 2) Atribui cada página a um capítulo (chunk), cortando nos waypoints ----
-  const pageChunk = []; // chunk index por página, no mesmo índice de `paginas`
-  const chunkStartId = [null]; // start_id de cada chunk
+  const pageChunk = [];
+  const chunkStartId = [null];
   let chunkAtual = 0;
   paginas.forEach((p, i) => {
     if (i > 0 && p.id && waypointIds.has(p.id)) {
@@ -101,7 +103,7 @@ function main() {
   const totalChunks = chunkAtual + 1;
   console.log(`total de capítulos gerados: ${totalChunks}`);
 
-  // ---- 3) Função utilitária: dado um nó, descobre a que capítulo ele pertence ----
+  // ---- 3) Descobre a que capítulo um nó qualquer pertence ----
   function chunkDoNo(node) {
     const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
     if (!el) return 0;
@@ -110,22 +112,20 @@ function main() {
       const idx = paginas.indexOf(paginaAncestral);
       if (idx !== -1) return pageChunk[idx];
     }
-    // não está dentro de nenhuma .doma-pagina: acha a última página anterior no documento
     let ultimoChunk = 0;
     for (let i = 0; i < paginas.length; i++) {
       const pos = paginas[i].compareDocumentPosition(node);
-      // FOLLOWING (4) => o node vem DEPOIS da página i no documento
       if (pos & Node.DOCUMENT_POSITION_FOLLOWING) ultimoChunk = pageChunk[i];
     }
     return ultimoChunk;
   }
 
-  // ---- 4) Extrai CSS global e remove os <style> do DOM ----
+  // ---- 4) CSS global, remove <style> do DOM ----
   const estilos = Array.from(document.querySelectorAll("style"));
   const css = estilos.map((s) => s.textContent).join("\n\n/* ===== próximo <style> ===== */\n\n");
   estilos.forEach((s) => s.remove());
 
-  // ---- 5) Mapeia scripts (sem src) para capítulos, extrai funções definidas ----
+  // ---- 5) Scripts por capítulo, funções definidas ----
   const scripts = Array.from(document.querySelectorAll("script")).filter((s) => !s.src);
   const scriptChunk = scripts.map(chunkDoNo);
 
@@ -140,9 +140,8 @@ function main() {
     });
   });
 
-  // ---- 6) Chamadas feitas por cada capítulo (a partir do HTML e dos próprios scripts) ----
+  // ---- 6) Chamadas de função feitas por cada capítulo ----
   const chamadasPorChunk = Array.from({ length: totalChunks }, () => new Set());
-  // a) via atributos onXXX="" em qualquer elemento
   document.querySelectorAll("*").forEach((el) => {
     let attrsTexto = "";
     for (const attr of el.attributes || []) {
@@ -153,13 +152,12 @@ function main() {
       extrairChamadas(attrsTexto).forEach((n) => chamadasPorChunk[ci].add(n));
     }
   });
-  // b) dentro do próprio corpo de cada script (chamadas de função para função)
   scripts.forEach((s, i) => {
     const ci = scriptChunk[i];
     extrairChamadas(s.textContent).forEach((n) => chamadasPorChunk[ci].add(n));
   });
 
-  // ---- 7) Ponto fixo: promove para core.js os capítulos cujas funções são usadas fora deles ----
+  // ---- 7) Ponto fixo: promove para core.js os capítulos usados fora deles ----
   const coreIdx = new Set();
   for (let ci = 0; ci < totalChunks; ci++) {
     for (const nome of funcsPorChunk[ci]) {
@@ -197,7 +195,7 @@ function main() {
     }
   });
 
-  // ---- 8) Remove do DOM os scripts que foram promovidos a core (evita duplicação) ----
+  // ---- 8) Remove do DOM os scripts promovidos a core (evita duplicação) ----
   const coreJsPartes = [];
   scripts.forEach((s, i) => {
     if (coreIdx.has(scriptChunk[i])) {
@@ -207,6 +205,41 @@ function main() {
   });
   const coreJs = coreJsPartes.join("\n\n/* ===== próximo bloco (core) ===== */\n\n");
 
+  // ---- 8.5) Detecta popups/modais "flutuantes" (fora do fluxo de páginas)
+  // que moram num capítulo mas são chamados de outro (ou do próprio core.js),
+  // e promove-os para o capítulo inicial (sempre carregado).
+  const wrapperTmp = document.getElementById("doma-app-wrapper");
+  const flutuantes = Array.from(wrapperTmp.children).filter(
+    (el) => el.id && !el.classList.contains("doma-pagina") && !el.querySelector(".doma-pagina")
+  );
+
+  const idsRefPorChunk = Array.from({ length: totalChunks }, () => new Set());
+  document.querySelectorAll("*").forEach((el) => {
+    let attrsTexto = "";
+    for (const attr of el.attributes || []) {
+      if (/^on/i.test(attr.name)) attrsTexto += ` ${attr.name}="${attr.value}"`;
+    }
+    if (attrsTexto) {
+      const ci = chunkDoNo(el);
+      extrairIdsGetElementById(attrsTexto).forEach((id) => idsRefPorChunk[ci].add(id));
+    }
+  });
+  scripts.forEach((s, i) => {
+    extrairIdsGetElementById(s.textContent).forEach((id) => idsRefPorChunk[scriptChunk[i]].add(id));
+  });
+  const idsRefNoCore = extrairIdsGetElementById(coreJs);
+
+  const promoverAoZero = new Set();
+  flutuantes.forEach((el) => {
+    const chunkNatural = chunkDoNo(el);
+    const referenciadoFora = idsRefPorChunk.some((s, ci) => ci !== chunkNatural && s.has(el.id));
+    const referenciadoNoCore = idsRefNoCore.has(el.id);
+    if ((referenciadoFora || referenciadoNoCore) && chunkNatural !== 0) {
+      promoverAoZero.add(el);
+      console.log(`  - popup '#${el.id}' morava no capítulo ${chunkNatural}, mas é chamado de fora -> promovido ao capítulo inicial`);
+    }
+  });
+
   // ---- 9) Serializa cada capítulo a partir dos filhos diretos de #doma-app-wrapper ----
   const wrapper = document.getElementById("doma-app-wrapper");
   const partesPorChunk = Array.from({ length: totalChunks }, () => []);
@@ -214,15 +247,17 @@ function main() {
 
   // Alguns .doma-pagina estão soltos como filhos diretos do wrapper; outros
   // ficam agrupados dentro de wrappers vestigiais (ex: <div class="swiper-slide">,
-  // resquício de uma versão antiga com a biblioteca Swiper, sem nenhum CSS/JS
-  // ativo hoje) que às vezes contêm DUAS OU MAIS páginas juntas. Se eu tratasse
-  // esses wrappers como uma unidade única, a segunda página "vazava" para o
-  // capítulo da primeira. Por isso, sempre que um nó contém mais de uma
-  // .doma-pagina, "abrimos" esse nó e distribuímos seus filhos individualmente
-  // em vez de serializar o wrapper inteiro de uma vez.
+  // resquício de uma versão antiga com a biblioteca Swiper, sem CSS/JS ativo
+  // hoje) que às vezes contêm DUAS OU MAIS páginas juntas. Por isso, sempre
+  // que um nó contém mais de uma .doma-pagina, "abrimos" esse nó e
+  // distribuímos seus filhos individualmente.
   function distribuir(node) {
     if (node.nodeType !== Node.ELEMENT_NODE) {
       partesPorChunk[estado.chunkCorrente].push(serializarNo(node, dom));
+      return;
+    }
+    if (promoverAoZero.has(node)) {
+      partesPorChunk[0].push(serializarNo(node, dom));
       return;
     }
     const paginasDentro = node.classList.contains("doma-pagina")
@@ -239,15 +274,13 @@ function main() {
       partesPorChunk[estado.chunkCorrente].push(serializarNo(node, dom));
       return;
     }
-    // mais de uma página dentro deste nó: descarta o wrapper externo (vestigial,
-    // sem CSS/JS ativo) e distribui os filhos individualmente
     Array.from(node.childNodes).forEach((neto) => distribuir(neto));
   }
 
   Array.from(wrapper.childNodes).forEach((filho) => distribuir(filho));
 
-  // Conteúdo que existe FORA de #doma-app-wrapper mas dentro do body
-  // (áudios, carteira, modal, paywall etc.) entra no capítulo 0.
+  // Conteúdo fora de #doma-app-wrapper mas dentro do body entra no capítulo 0
+  // (áudios, carteira, modal, paywall etc. que já estavam soltos antes do wrapper).
   const antesDoWrapper = [];
   const depoisDoWrapper = [];
   let passouWrapper = false;
