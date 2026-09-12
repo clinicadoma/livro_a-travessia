@@ -25,7 +25,7 @@
     // Use "main" durante o desenvolvimento. Em produção, prefira uma TAG
     // (ex: "v1.0.3") ou o hash do commit, para não ficar preso ao cache
     // de até 7 dias que o jsDelivr mantém para @main.
-    var GH_REF  = "main";
+    var GH_REF  = "c2a3502772cf044556d3a802aece8d95f875bdfb";
 
     var BASE       = "https://cdn.jsdelivr.net/gh/" + GH_USER + "/" + GH_REPO + "@" + GH_REF + "/";
     var BASE_CHUNKS = BASE + "html/chunks/";
@@ -55,7 +55,7 @@
         alvo.addEventListener = function (tipo, cb, opts) {
           if (tipo === 'DOMContentLoaded') {
             callbacksDCL.push(cb);
-            setTimeout(cb, 0);
+            setTimeout(function () { try { cb(); } catch (e) { /* elemento de um capítulo ainda não carregado */ } }, 0);
             return;
           }
           return addOriginal(tipo, cb, opts);
@@ -72,7 +72,7 @@
             _onloadReal = fn;
             if (typeof fn === 'function') {
               callbacksDCL.push(fn);
-              setTimeout(fn, 0);
+              setTimeout(function () { try { fn(); } catch (e) { /* elemento de um capítulo ainda não carregado */ } }, 0);
             }
           }
         });
