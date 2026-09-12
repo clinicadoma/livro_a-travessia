@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="color-scheme" content="light only">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700;800;900&family=Open+Sans:wght@400;600;700&family=Orbitron:wght@700;900&family=Roboto:wght@400;700;900&family=Quicksand:wght@600;700;800&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;">
+
+  <div id="doma-root">
+    <p style="text-align:center;padding:60px 20px;font-family:sans-serif;color:#94a3b8;">
+      Carregando a Travessia...
+    </p>
+  </div>
+
+  <script>
+  (function () {
+
+    // ======================================================
+    // 1) CONFIGURAÇÃO — troque pelos seus dados do GitHub
+    // ======================================================
+    var GH_USER = "SEU-USUARIO-GITHUB";
+    var GH_REPO = "SEU-REPOSITORIO";
+    // Use "main" durante o desenvolvimento. Em produção, prefira uma TAG
+    // (ex: "v1.0.3") ou o hash do commit, para não ficar preso ao cache
+    // de até 7 dias que o jsDelivr mantém para @main.
+    var GH_REF  = "main";
+
+    var BASE       = "https://cdn.jsdelivr.net/gh/" + GH_USER + "/" + GH_REPO + "@" + GH_REF + "/";
+    var BASE_CHUNKS = BASE + "html/chunks/";
+
+    // ======================================================
+    // 2) SHIM — ESSENCIAL, e agora "recarregável".
+    //
+    // Vários scripts legados fazem sua configuração dentro de
+    // document.addEventListener('DOMContentLoaded', ...) ou de
+    // window.onload = fn. Isso já disparou há muito tempo na página
+    // do Wix, então:
+    //   a) interceptamos esses registros e os disparamos uma vez,
+    //      no próximo tick;
+    //   b) GUARDAMOS cada callback registrado, para que o motor de
+    //      navegação (core.js) possa "re-tocar" todos eles de novo
+    //      toda vez que um novo capítulo for injetado — assim,
+    //      configurações que dependem de elementos de um capítulo
+    //      ainda não carregado simplesmente tentam de novo mais
+    //      tarde e funcionam quando o capítulo certo finalmente
+    //      existir no DOM.
+    // ======================================================
+    var callbacksDCL = [];
+
+    function prepararAmbienteParaModulosLegados() {
+      [document, window].forEach(function (alvo) {
+        var addOriginal = alvo.addEventListener.bind(alvo);
+        alvo.addEventListener = function (tipo, cb, opts) {
+          if (tipo === 'DOMContentLoaded') {
+            callbacksDCL.push(cb);
+            setTimeout(cb, 0);
+            return;
+          }
+          return addOriginal(tipo, cb, opts);
+        };
+      });
+
+      // Cobre padrões do tipo: window.onload = minhaFuncao;
+      var _onloadReal = null;
+      try {
+        Object.defineProperty(window, 'onload', {
+          configurable: true,
+          get: function () { return _onloadReal; },
+          set: function (fn) {
+            _onloadReal = fn;
+            if (typeof fn === 'function') {
+              callbacksDCL.push(fn);
+              setTimeout(fn, 0);
+            }
+          }
+        });
+      } catch (e) { /* alguns navegadores antigos podem já ter essa prop não-configurável */ }
+
+      // Exposto para o core.js chamar depois de injetar cada capítulo novo.
+      // Cada callback roda isolado (try/catch) para que um erro em um deles
+      // (por ex. um elemento de OUTRO capítulo que ainda não existe) não
+      // impeça os demais de rodar.
+      window.__domaRefireDCL = function () {
+        callbacksDCL.forEach(function (cb) {
+          try { cb(); } catch (e) { /* silencioso: o elemento alvo ainda não existe */ }
+        });
+      };
+    }
+
+    // ======================================================
+    // 3) CARREGADORES
+    // ======================================================
+    function buscarTexto(url) {
+      return fetch(url, { cache: "no-store" }).then(function (r) {
+        if (!r.ok) throw new Error("Falha ao buscar " + url + " (HTTP " + r.status + ")");
+        return r.text();
+      });
+    }
+
+    function buscarJSON(url) {
+      return fetch(url, { cache: "no-store" }).then(function (r) {
+        if (!r.ok) throw new Error("Falha ao buscar " + url + " (HTTP " + r.status + ")");
+        return r.json();
+      });
+    }
+
+    function injetarCSS(css) {
+      var tag = document.createElement('style');
+      tag.textContent = css;
+      document.head.appendChild(tag);
+    }
+
+    function injetarJS(js) {
+      // Tag <script> real (não eval), para que as funções fiquem
+      // disponíveis globalmente (usadas em onclick="...").
+      // Scripts inline sem "src" executam de forma síncrona neste append.
+      var tag = document.createElement('script');
+      tag.textContent = js;
+      document.body.appendChild(tag);
+    }
+
+    var root = document.getElementById('doma-root');
+
+    prepararAmbienteParaModulosLegados();
+
+    Promise.all([
+      buscarJSON(BASE + "manifest.json"),
+      buscarTexto(BASE + "css/style.css"),
+      buscarTexto(BASE + "js/core.js")
+    ])
+    .then(function (resultados) {
+      var manifest = resultados[0];
+      var css = resultados[1];
+      var coreJs = resultados[2];
+
+      injetarCSS(css);
+      root.innerHTML = ""; // remove o "Carregando..." antes do primeiro capítulo entrar
+      injetarJS(coreJs);   // define domaCarregarCapitulo, mudarPagina, irParaTela, etc.
+
+      // __domaBootstrap já carrega o capítulo inicial (índice 0: áudios,
+      // carteira, modal, primeiras páginas) e inicializa a navegação.
+      return window.__domaBootstrap(manifest, BASE_CHUNKS);
+    })
+    .catch(function (err) {
+      console.error("Doma loader:", err);
+      root.innerHTML = "<p style='padding:30px;text-align:center;color:#900;font-family:sans-serif;'>" +
+        "Não foi possível carregar o conteúdo. Recarregue a página.</p>";
+    });
+
+  })();
+  </script>
+
+</body>
+</html>

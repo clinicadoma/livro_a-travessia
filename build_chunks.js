@@ -1,0 +1,305 @@
+#!/usr/bin/env node
+/**
+ * Analisa o HTML monolítico usando um parser HTML de verdade (jsdom/parse5,
+ * o mesmo tipo de motor que um navegador usa) e produz:
+ *   - manifest.json
+ *   - css/style.css
+ *   - js/core.js       (scripts usados por mais de um capítulo)
+ *   - html/chunks/*.html
+ *
+ * Por que não regex? O arquivo original tem comentários HTML malformados
+ * (ex: "<!-- ... -- >" sem fechar corretamente) que escondem páginas
+ * inteiras (o navegador as trata como comentário, então elas nunca
+ * aparecem de verdade), e ao menos uma página usa <section> em vez de
+ * <div>. Regex não entende essas nuances; um parser de verdade sim.
+ *
+ * Uso:
+ *   node build_chunks.js original.html pasta_saida/
+ */
+const { JSDOM } = require("jsdom");
+const fs = require("fs");
+const path = require("path");
+
+const SEED_GLOBAIS = new Set([
+  "mudarPagina", "irParaTela", "ganharMoedas", "abrirModalDoma", "fecharModal",
+  "processarFormulario", "isCoerente", "atualizarCarteiraUI", "comprarRecompensa",
+  "verificarLoja", "atualizarVisibilidadeSeta", "atualizarVisualSumario",
+  "selecionarTag", "seMarcado",
+]);
+
+function extrairFuncoesDefinidas(js) {
+  const nomes = new Set();
+  const padroes = [
+    /function\s+(\w+)\s*\(/g,
+    /window\.(\w+)\s*=\s*function/g,
+    /window\.(\w+)\s*=\s*\(/g,
+    /\b(?:let|var|const)\s+(\w+)\s*=\s*function/g,
+  ];
+  for (const p of padroes) {
+    let m;
+    while ((m = p.exec(js))) nomes.add(m[1]);
+  }
+  return nomes;
+}
+
+function extrairChamadas(texto) {
+  const chamadas = new Set();
+  const attrRe = /\bon[a-z]+\s*=\s*"([^"]*)"/gi;
+  let m;
+  while ((m = attrRe.exec(texto))) {
+    const chamadasAttr = m[1].match(/([A-Za-z_]\w*)\s*\(/g) || [];
+    chamadasAttr.forEach((c) => chamadas.add(c.replace(/\s*\($/, "")));
+  }
+  const chamadasCorpo = texto.match(/([A-Za-z_]\w*)\s*\(/g) || [];
+  chamadasCorpo.forEach((c) => chamadas.add(c.replace(/\s*\($/, "")));
+  return chamadas;
+}
+
+function serializarNo(node, dom) {
+  if (node.nodeType === dom.window.Node.ELEMENT_NODE) return node.outerHTML;
+  if (node.nodeType === dom.window.Node.TEXT_NODE) return node.textContent;
+  if (node.nodeType === dom.window.Node.COMMENT_NODE) return `<!--${node.textContent}-->`;
+  return "";
+}
+
+function main() {
+  const [, , origem, saida] = process.argv;
+  if (!origem || !saida) {
+    console.error("Uso: node build_chunks.js original.html pasta_saida/");
+    process.exit(1);
+  }
+
+  const textoOriginal = fs.readFileSync(origem, "utf-8");
+
+  // ids referenciados como destino de navegação em QUALQUER lugar do texto bruto
+  // (inofensivo mesmo se algum estiver em código morto/comentado: só é usado se
+  // corresponder a um elemento realmente existente no DOM resolvido abaixo)
+  const waypointIds = new Set();
+  for (const m of textoOriginal.matchAll(/irParaTela\(\s*['"]([\w\-]+)['"]\s*\)/g)) waypointIds.add(m[1]);
+  for (const m of textoOriginal.matchAll(/data-alvo=["']([\w\-]+)["']/g)) waypointIds.add(m[1]);
+  console.log(`waypoints (destinos de menu) encontrados: ${waypointIds.size}`);
+
+  const dom = new JSDOM(textoOriginal, { runScripts: "outside-only" });
+  const { document } = dom.window;
+  const Node = dom.window.Node;
+
+  // ---- 1) Lista AUTORITATIVA de páginas, na ordem real do documento ----
+  const paginas = Array.from(document.querySelectorAll(".doma-pagina"));
+  console.log(`total de .doma-pagina encontradas pelo parser real: ${paginas.length}`);
+
+  // ---- 2) Atribui cada página a um capítulo (chunk), cortando nos waypoints ----
+  const pageChunk = []; // chunk index por página, no mesmo índice de `paginas`
+  const chunkStartId = [null]; // start_id de cada chunk
+  let chunkAtual = 0;
+  paginas.forEach((p, i) => {
+    if (i > 0 && p.id && waypointIds.has(p.id)) {
+      chunkAtual++;
+      chunkStartId.push(p.id);
+    }
+    pageChunk.push(chunkAtual);
+  });
+  const totalChunks = chunkAtual + 1;
+  console.log(`total de capítulos gerados: ${totalChunks}`);
+
+  // ---- 3) Função utilitária: dado um nó, descobre a que capítulo ele pertence ----
+  function chunkDoNo(node) {
+    const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!el) return 0;
+    const paginaAncestral = el.closest(".doma-pagina");
+    if (paginaAncestral) {
+      const idx = paginas.indexOf(paginaAncestral);
+      if (idx !== -1) return pageChunk[idx];
+    }
+    // não está dentro de nenhuma .doma-pagina: acha a última página anterior no documento
+    let ultimoChunk = 0;
+    for (let i = 0; i < paginas.length; i++) {
+      const pos = paginas[i].compareDocumentPosition(node);
+      // FOLLOWING (4) => o node vem DEPOIS da página i no documento
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) ultimoChunk = pageChunk[i];
+    }
+    return ultimoChunk;
+  }
+
+  // ---- 4) Extrai CSS global e remove os <style> do DOM ----
+  const estilos = Array.from(document.querySelectorAll("style"));
+  const css = estilos.map((s) => s.textContent).join("\n\n/* ===== próximo <style> ===== */\n\n");
+  estilos.forEach((s) => s.remove());
+
+  // ---- 5) Mapeia scripts (sem src) para capítulos, extrai funções definidas ----
+  const scripts = Array.from(document.querySelectorAll("script")).filter((s) => !s.src);
+  const scriptChunk = scripts.map(chunkDoNo);
+
+  const funcsPorChunk = Array.from({ length: totalChunks }, () => new Set());
+  const funcToChunk = new Map();
+  scripts.forEach((s, i) => {
+    const ci = scriptChunk[i];
+    const defs = extrairFuncoesDefinidas(s.textContent);
+    defs.forEach((nome) => {
+      funcsPorChunk[ci].add(nome);
+      if (!funcToChunk.has(nome)) funcToChunk.set(nome, ci);
+    });
+  });
+
+  // ---- 6) Chamadas feitas por cada capítulo (a partir do HTML e dos próprios scripts) ----
+  const chamadasPorChunk = Array.from({ length: totalChunks }, () => new Set());
+  // a) via atributos onXXX="" em qualquer elemento
+  document.querySelectorAll("*").forEach((el) => {
+    let attrsTexto = "";
+    for (const attr of el.attributes || []) {
+      if (/^on/i.test(attr.name)) attrsTexto += ` ${attr.name}="${attr.value}"`;
+    }
+    if (attrsTexto) {
+      const ci = chunkDoNo(el);
+      extrairChamadas(attrsTexto).forEach((n) => chamadasPorChunk[ci].add(n));
+    }
+  });
+  // b) dentro do próprio corpo de cada script (chamadas de função para função)
+  scripts.forEach((s, i) => {
+    const ci = scriptChunk[i];
+    extrairChamadas(s.textContent).forEach((n) => chamadasPorChunk[ci].add(n));
+  });
+
+  // ---- 7) Ponto fixo: promove para core.js os capítulos cujas funções são usadas fora deles ----
+  const coreIdx = new Set();
+  for (let ci = 0; ci < totalChunks; ci++) {
+    for (const nome of funcsPorChunk[ci]) {
+      if (SEED_GLOBAIS.has(nome)) coreIdx.add(ci);
+    }
+  }
+  let mudou = true;
+  const motivos = {};
+  while (mudou) {
+    mudou = false;
+    const definidasNoCore = new Set();
+    coreIdx.forEach((ci) => funcsPorChunk[ci].forEach((n) => definidasNoCore.add(n)));
+    for (let ci = 0; ci < totalChunks; ci++) {
+      for (const nome of chamadasPorChunk[ci]) {
+        if (funcsPorChunk[ci].has(nome) || definidasNoCore.has(nome)) continue;
+        const alvo = funcToChunk.has(nome) ? funcToChunk.get(nome) : undefined;
+        if (alvo !== undefined && !coreIdx.has(alvo)) {
+          coreIdx.add(alvo);
+          if (!motivos[alvo]) motivos[alvo] = new Set();
+          motivos[alvo].add(nome);
+          mudou = true;
+        }
+      }
+    }
+  }
+
+  console.log(`capítulos promovidos a core.js: ${[...coreIdx].sort((a, b) => a - b).join(", ")}`);
+  [...coreIdx].sort((a, b) => a - b).forEach((ci) => {
+    const r = motivos[ci];
+    const etiqueta = chunkStartId[ci] || `(capítulo inicial #${ci})`;
+    if (r) {
+      console.log(`  - capítulo '${etiqueta}' -> core.js (funções exigidas de fora: ${[...r].slice(0, 6).join(", ")}${r.size > 6 ? "..." : ""})`);
+    } else {
+      console.log(`  - capítulo '${etiqueta}' -> core.js (continha função-semente conhecida)`);
+    }
+  });
+
+  // ---- 8) Remove do DOM os scripts que foram promovidos a core (evita duplicação) ----
+  const coreJsPartes = [];
+  scripts.forEach((s, i) => {
+    if (coreIdx.has(scriptChunk[i])) {
+      coreJsPartes.push(s.textContent);
+      s.remove();
+    }
+  });
+  const coreJs = coreJsPartes.join("\n\n/* ===== próximo bloco (core) ===== */\n\n");
+
+  // ---- 9) Serializa cada capítulo a partir dos filhos diretos de #doma-app-wrapper ----
+  const wrapper = document.getElementById("doma-app-wrapper");
+  const partesPorChunk = Array.from({ length: totalChunks }, () => []);
+  const estado = { chunkCorrente: 0 };
+
+  // Alguns .doma-pagina estão soltos como filhos diretos do wrapper; outros
+  // ficam agrupados dentro de wrappers vestigiais (ex: <div class="swiper-slide">,
+  // resquício de uma versão antiga com a biblioteca Swiper, sem nenhum CSS/JS
+  // ativo hoje) que às vezes contêm DUAS OU MAIS páginas juntas. Se eu tratasse
+  // esses wrappers como uma unidade única, a segunda página "vazava" para o
+  // capítulo da primeira. Por isso, sempre que um nó contém mais de uma
+  // .doma-pagina, "abrimos" esse nó e distribuímos seus filhos individualmente
+  // em vez de serializar o wrapper inteiro de uma vez.
+  function distribuir(node) {
+    if (node.nodeType !== Node.ELEMENT_NODE) {
+      partesPorChunk[estado.chunkCorrente].push(serializarNo(node, dom));
+      return;
+    }
+    const paginasDentro = node.classList.contains("doma-pagina")
+      ? [node]
+      : Array.from(node.querySelectorAll(".doma-pagina"));
+
+    if (paginasDentro.length === 0) {
+      partesPorChunk[estado.chunkCorrente].push(serializarNo(node, dom));
+      return;
+    }
+    if (paginasDentro.length === 1) {
+      const idx = paginas.indexOf(paginasDentro[0]);
+      if (idx !== -1) estado.chunkCorrente = pageChunk[idx];
+      partesPorChunk[estado.chunkCorrente].push(serializarNo(node, dom));
+      return;
+    }
+    // mais de uma página dentro deste nó: descarta o wrapper externo (vestigial,
+    // sem CSS/JS ativo) e distribui os filhos individualmente
+    Array.from(node.childNodes).forEach((neto) => distribuir(neto));
+  }
+
+  Array.from(wrapper.childNodes).forEach((filho) => distribuir(filho));
+
+  // Conteúdo que existe FORA de #doma-app-wrapper mas dentro do body
+  // (áudios, carteira, modal, paywall etc.) entra no capítulo 0.
+  const antesDoWrapper = [];
+  const depoisDoWrapper = [];
+  let passouWrapper = false;
+  Array.from(document.body.childNodes).forEach((filho) => {
+    if (filho === wrapper) { passouWrapper = true; return; }
+    (passouWrapper ? depoisDoWrapper : antesDoWrapper).push(serializarNo(filho, dom));
+  });
+  partesPorChunk[0].unshift(...antesDoWrapper);
+  partesPorChunk[totalChunks - 1].push(...depoisDoWrapper);
+
+  // ---- 10) Escreve os arquivos ----
+  fs.mkdirSync(path.join(saida, "css"), { recursive: true });
+  fs.mkdirSync(path.join(saida, "js"), { recursive: true });
+  fs.mkdirSync(path.join(saida, "html", "chunks"), { recursive: true });
+
+  fs.writeFileSync(path.join(saida, "css", "style.css"), css, "utf-8");
+  fs.writeFileSync(path.join(saida, "js", "core.js"), coreJs, "utf-8");
+
+  const manifest = { chunks: [], pages: [] };
+  for (let ci = 0; ci < totalChunks; ci++) {
+    const nomeArquivo = `${String(ci).padStart(3, "0")}_${chunkStartId[ci] || "inicial"}.html`;
+    manifest.chunks.push({
+      index: ci,
+      arquivo: nomeArquivo,
+      start_id: chunkStartId[ci],
+      is_core: coreIdx.has(ci),
+    });
+    fs.writeFileSync(
+      path.join(saida, "html", "chunks", nomeArquivo),
+      partesPorChunk[ci].join(""),
+      "utf-8"
+    );
+  }
+  paginas.forEach((p, i) => {
+    manifest.pages.push({ id: p.id || null, chunk: pageChunk[i] });
+  });
+
+  fs.writeFileSync(path.join(saida, "manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
+
+  console.log();
+  console.log(`total de páginas no manifest: ${manifest.pages.length}`);
+  const tamCore = fs.statSync(path.join(saida, "js", "core.js")).size;
+  let tamChunks = 0, maiorChunk = 0;
+  manifest.chunks.forEach((c) => {
+    if (c.is_core) return;
+    const sz = fs.statSync(path.join(saida, "html", "chunks", c.arquivo)).size;
+    tamChunks += sz;
+    if (sz > maiorChunk) maiorChunk = sz;
+  });
+  console.log(`tamanho core.js: ${(tamCore / 1024).toFixed(1)} KB`);
+  console.log(`soma de capítulos html (carregados aos poucos): ${(tamChunks / 1024).toFixed(1)} KB`);
+  console.log(`maior capítulo individual: ${(maiorChunk / 1024).toFixed(1)} KB`);
+}
+
+main();

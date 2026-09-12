@@ -1,0 +1,97 @@
+<div class="swiper-slide">
+&nbsp; &nbsp; <div class="doma-pagina" id="pag-proximo-nivel" style="background: #f8fafc;">
+&nbsp; &nbsp; &nbsp; &nbsp; <div class="wrapper-isolado" style="display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; padding: 20px;">
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <div style="background: linear-gradient(145deg, #1e293b, #0f172a); padding: 5vh 20px; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); border: 1px solid #334155; text-align: center; width: 100%; max-width: 380px; position: relative;">
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <div style="position: absolute; top: 15%; left: 50%; transform: translate(-50%, -50%); width: 100px; height: 100px; background: rgba(244, 63, 94, 0.4); filter: blur(35px); border-radius: 50%; z-index: 0;"></div>
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <div style="font-size: 3.5rem; margin-bottom: 2vh; position: relative; z-index: 1;">🧠</div>
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <h3 style="color: #fbbf24; font-family: 'Quicksand', sans-serif; font-size: 1.4rem; font-weight: 900; margin-bottom: 2vh; text-transform: uppercase; position: relative; z-index: 1;">O Próximo Nível</h3>
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <p style="color: #e2e8f0; font-size: 1.05rem; line-height: 1.6; margin-bottom: 4vh; font-family: 'Quicksand', sans-serif; font-weight: 500; position: relative; z-index: 1;">Mas como agir quando seus monstros tentam assumir o controle total no seu dia a dia?</p>
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; <button class="btn-doma pulse-btn" style="background: #334155; color: white; border: 1px solid #475569; padding: 18px; width: 100%; border-radius: 15px; font-weight: 900; font-size: 0.95rem; text-transform: uppercase; box-shadow: 0 8px 20px rgba(0,0,0,0.2); position: relative; z-index: 1;" onclick="abrirCamadaLivro()">Como encontrar o caminho? ➔</button>
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; </div>
+
+&nbsp; &nbsp; &nbsp; &nbsp; </div>
+&nbsp; &nbsp; </div>
+</div>
+
+<div id="CAMADA_ABSOLUTA_LIVRO" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%); z-index: 9999999; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;">
+    <div style="width: 100%; max-width: 1100px; margin: 0 auto; padding: 15px 10px; position: sticky; top: 0; z-index: 100000; text-align: left; background: linear-gradient(to bottom, #ffffff 80%, rgba(255,255,255,0));">
+        <button onclick="fecharCamadaLivro()" style="background: #1e293b; color: white; border: none; padding: 10px 20px; border-radius: 50px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.2); font-family: 'Quicksand', sans-serif; text-transform: uppercase; font-size: 0.8rem;">
+            ⬅️ VOLTAR AOS SLIDES
+        </button>
+    </div>
+
+    
+
+    <div id="CONTEUDO_LIVRO_INTERNO">
+        <audio id="AUDIO_QUEBRA_7" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3" preload="auto"></audio>
+        <audio id="AUDIO_APARECER_7" src="https://assets.mixkit.co/active_storage/sfx/2013/2013-preview.mp3" preload="auto"></audio>
+        <audio id="AUDIO_PASSO_7" src="https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3" preload="auto"></audio>
+        <audio id="AUDIO_FINAL_7" src="https://assets.mixkit.co/active_storage/sfx/2018/2018-preview.mp3" preload="auto"></audio>
+
+        <div class="livro-container-fix">
+            <div class="livro-topo-texto" id="topo-texto-intro">
+                <span class="livro-badge" style="background: #ea580c; color: #fff; box-shadow: 0 4px 15px rgba(234, 88, 12, 0.4);">A Investigação Definitiva 🔦</span>
+                <!-- h2 style="color: #1e293b; font-weight: 900; letter-spacing: -1px; margin-top: 15px;">
+                   <br>
+                    <span style="color: #ea580c;"></span>
+                </h2 -->
+                <p style="color: #475569; font-size: 1.15rem; font-weight: 600; line-height: 1.6;">
+                     Respire fundo.
+                </p>
+            </div>
+
+            <div class="livro-layout-flex" id="caixa-livro-principal">
+                <div class="box-acorrentada" id="box-livro-animado">
+                    <img src=" https://i.postimg.cc/s2tLZYVR/livro-certo.png" class="livro-img-main" id="img-livro-alvo" alt="Tratamento Selado" style="filter: grayscale(90%) blur(4px) brightness(0.4);">
+                    <div class="furacao-efeito" id="ef-furacao">🌪️</div>
+                    <div class="fumaca-efeito" id="ef-fumaca"></div>
+                    <div class="flash-luz" id="ef-flash"></div>
+                    <div class="overlay-correntes" id="overlay-prisao">
+                        <span class="corrente-x c-esq" id="corr-1">⛓️⛓️⛓️⛓️⛓️⛓️</span>
+                        <span class="corrente-x c-dir" id="corr-2">⛓️⛓️⛓️⛓️⛓️⛓️</span>
+                        <div class="cadeado-gigante" id="cadeado-l">🔐</div>
+                        <div class="texto-selado" id="txt-selo">CONTEÚDO SELADO</div>
+                    </div>
+                </div>
+
+                <div class="setas-alvo" id="setas-alvo-id">
+                    <span class="seta-neon" style="color: #fbbf24; font-size: 1.5rem; animation: pulsarSetaParaBotaoD 1.5s infinite;">➤</span>
+                    <button class="btn-quebrar-azul" id="btn-alicate" onclick="quebrarCorrentesLivro()">
+                        <span style="transform: rotate(90deg) scaleX(-1); font-size: 1.3rem;">✂️</span> CORTAR O LACRE
+                    </button>
+                    <span class="seta-neon" style="color: #fbbf24; font-size: 1.5rem; animation: pulsarSetaParaBotaoE 1.5s infinite;">◄</span>
+                </div>
+
+                <!-- button class="btn-chamar-jornada" id="btn-chamar-jornada-id" onclick="iniciarJornadaInterativa()">👇 Acessar o Livro</button -->
+                <button class="btn-chamar-jornada" id="btn-chamar-jornada-id" onclick="fecharCamadaLivro(); if(typeof mudarPagina === 'function') { mudarPagina(1); } else { try { swiperDoma.slideNext(); } catch(e) {} }">👇 Acessar o Livro</button>
+
+                <div id="palco-jornada"></div>
+
+                <div id="tela-final-venda">
+                    <h3 class="final-titulo">O SEU ARSENAL ESTÁ LIBERADO.</h3>
+                    <p class="final-texto">As 7 chaves acima destrancaram a sua mente.</p>
+                    
+                    <button class="btn-desbloqueio-capitulo" style="background-color: #f36d21; color: white; border: none; border-radius: 50px; padding: 18px 30px; font-weight: 800; cursor: pointer; width: 100%; box-shadow: 0 4px 15px rgba(243, 109, 33, 0.4);" onclick="fecharCamadaLivro(); if(typeof mudarPagina === 'function') { mudarPagina(1); } else { try { swiperDoma.slideNext(); } catch(e) {} }">
+                        <span class="icone-btn">✅</span> ACESSAR MAPA DA TRAVESSIA 
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="rodape-livro" style="text-align: center; margin-top: 40px;">
+            <span style="color: #64748b; font-weight: 600; font-family: 'Quicksand', sans-serif;"></span>
+            <span style="margin-left: 20px; color: #94a3b8; font-weight: bold; font-family: 'Quicksand', sans-serif;">Clínica Doma</span>
+        </div>
+
+        
+    </div>
+</div>
+
+
+
