@@ -1721,7 +1721,7 @@ function tocarSireneRoleta() {
                 wrapper.setAttribute('data-doma-chunk', chunkIndex);
                 wrapper.innerHTML = html;
 
-                const root = document.getElementById('doma-root');
+                const root = document.getElementById('doma-app-wrapper') || document.getElementById('doma-root');
                 root.appendChild(wrapper);
 
                 const paginasDoChunk = wrapper.querySelectorAll('.doma-pagina');
