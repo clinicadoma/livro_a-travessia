@@ -25,7 +25,7 @@
     // Use "main" durante o desenvolvimento. Em produção, prefira uma TAG
     // (ex: "v1.0.3") ou o hash do commit, para não ficar preso ao cache
     // de até 7 dias que o jsDelivr mantém para @main.
-    var GH_REF  = "c2a3502772cf044556d3a802aece8d95f875bdfb";
+    var GH_REF  = "main";
 
     var BASE       = "https://cdn.jsdelivr.net/gh/" + GH_USER + "/" + GH_REPO + "@" + GH_REF + "/";
     var BASE_CHUNKS = BASE + "html/chunks/";
@@ -136,7 +136,13 @@
       var coreJs = resultados[2];
 
       injetarCSS(css);
-      root.innerHTML = ""; // remove o "Carregando..." antes do primeiro capítulo entrar
+      // Recria o #doma-app-wrapper: no arquivo original, TODAS as páginas e
+      // popups viviam dentro dele, e o CSS dele (position:absolute; z-index:100)
+      // é o que garante que os modais (z-index bem mais alto) fiquem por cima
+      // das páginas. Sem recriar esse elemento, cada capítulo vira um <div>
+      // solto sem contexto de empilhamento em comum, e os modais podem
+      // renderizar ATRÁS do slide ativo.
+      root.innerHTML = '<div id="doma-app-wrapper"></div>';
       injetarJS(coreJs);   // define domaCarregarCapitulo, mudarPagina, irParaTela, etc.
 
       // __domaBootstrap já carrega o capítulo inicial (índice 0: áudios,
